@@ -16,6 +16,8 @@ class Network(nn.Module):
 		self.meta = meta(out_ch=conv3_num*84+conv1_num*12+poly_num*12)
 
 	def conv3x3(self, x, feature):
+		residual = x
+		
 		batch_size = x.size()[0]
 		kernel = feature[:, 0:81].view(batch_size, 3, 3, 3, 3)
 		bias = feature[:, 81:84].view(batch_size, 3)
@@ -31,11 +33,14 @@ class Network(nn.Module):
 			
 		output = torch.cat(output_list, dim=0)
 
+		output = residual + output
 		output = F.leaky_relu(output, negative_slope=0.2, inplace=True)
 
 		return output
 
 	def conv1x1(self, x, feature):
+		residual = x
+
 		batch_size = x.size()[0]
 		kernel = feature[:, 0:9].view(batch_size, 3, 3, 1, 1)
 		bias = feature[:, 9:12].view(batch_size, 3)
@@ -50,6 +55,8 @@ class Network(nn.Module):
 		)
 			
 		output = torch.cat(output_list, dim=0)
+
+		output = residual + output
 
 		output = F.leaky_relu(output, negative_slope=0.2, inplace=True)
 
@@ -122,6 +129,9 @@ class Network(nn.Module):
 		att = torch.cat([att_R, att_G, att_B], dim=1)
 
 		x = x * (1 + att)
+
+		if location == None:
+			return x, thumb_x
 
 		# For thumbnail
 		bias = 0
