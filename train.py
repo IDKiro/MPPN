@@ -1,28 +1,25 @@
 from __future__ import division
 from __future__ import print_function
-import os, time, scipy.io, shutil, importlib
+import os, time, scipy.io, shutil, importlib, argparse
 import numpy as np
-import argparse
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from skimage import io
 from skimage.measure import compare_psnr, compare_ssim
 from torch.utils.data import DataLoader
-from prefetch_generator import BackgroundGenerator
 from pytorch_msssim import ms_ssim
 
 from model.ME import Network as ME
 from utils import AverageMeter, chw_to_hwc
 from dataset.loader import UPE, UPE_INF
 
+
 parser = argparse.ArgumentParser(description = 'Train')
-parser.add_argument('--ts', default=224, type=int, help='thumbnail size')
 parser.add_argument('--bs', default=64, type=int, help='batch size')
 parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
-parser.add_argument('--epochs', default=500, type=int, help='sum of epochs')
-parser.add_argument('--freq', default=400, type=int, help='learning rate update frequency')
-parser.add_argument('--save_freq', default=50, type=int, help='save result frequency')
+parser.add_argument('--epochs', default=200, type=int, help='sum of epochs')
+parser.add_argument('--eval_freq', default=20, type=int, help='validate frequency')
 args = parser.parse_args()
 
 
@@ -36,19 +33,6 @@ class fixed_loss(nn.Module):
 		loss = ms_ssim_loss + l1_loss
 
 		return loss
-
-
-class DataLoaderX(DataLoader):
-
-	def __iter__(self):
-		return BackgroundGenerator(super().__iter__())
-
-
-def adjust_learning_rate(optimizer, epoch):
-	if not epoch % args.freq and epoch:
-		for param_group in optimizer.param_groups:
-			param_group['lr'] = param_group['lr'] * 0.1
-	return optimizer
 
 
 def train(train_loader, model, criterion, optimizer, epoch):
@@ -71,7 +55,6 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
 		optimizer.zero_grad()
 		loss.backward()
-		nn.utils.clip_grad_norm_(model.parameters(), 1)
 		optimizer.step()
 
 		print('[{0}][{1}]\t'
@@ -86,7 +69,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
 def validate(val_loader, model, epoch):
 	losses = AverageMeter()
-
+	
+	torch.cuda.empty_cache()
 	model.eval()
 
 	for ind, (low_img, high_img, thumb_low_img) in enumerate(val_loader):
@@ -112,7 +96,7 @@ if __name__ == '__main__':
 	save_dir = './save_model/'
 	result_dir = './result/'
 
-	model = ME(conv3_num=2, conv1_num=4, poly_num=4)
+	model = ME(conv3_num=0, conv1_num=6)
 	print(model)
 	model.cuda()
 
@@ -139,15 +123,14 @@ if __name__ == '__main__':
 	criterion.cuda()
 
 	train_dataset = UPE('../dataset/UPE/train_patch/')
-	train_loader = DataLoaderX(
-		train_dataset, batch_size=args.bs, shuffle=True, pin_memory=True)
+	train_loader = DataLoader(
+		train_dataset, batch_size=args.bs, shuffle=True, num_workers=16, pin_memory=True)
 
-	val_dataset = UPE_INF('../dataset/UPE/test_full/', thumb_size=args.ts)
-	val_loader = DataLoaderX(
-		val_dataset, batch_size=1, shuffle=False, pin_memory=True)
+	val_dataset = UPE_INF('../dataset/UPE/test_full/')
+	val_loader = DataLoader(
+		val_dataset, batch_size=1, shuffle=False, num_workers=8)
 
 	for epoch in range(cur_epoch, args.epochs + 1):
-		optimizer = adjust_learning_rate(optimizer, epoch)
 		train(train_loader, model, criterion, optimizer, epoch)
 
 		torch.save({
@@ -157,7 +140,7 @@ if __name__ == '__main__':
 			'optimizer' : optimizer.state_dict()}, 
 			os.path.join(save_dir, 'checkpoint.pth.tar'))
 
-		if epoch % args.save_freq == 0:
+		if epoch % args.eval_freq == 0:
 			avg_loss = validate(val_loader, model, epoch)
 
 			if avg_loss < best_loss:

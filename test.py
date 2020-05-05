@@ -1,29 +1,16 @@
 from __future__ import division
 from __future__ import print_function
-import os, time, scipy.io, shutil, importlib
+import os, time, scipy.io, shutil, importlib, argparse
 import numpy as np
-import argparse
 import torch
 import torch.nn as nn
 from skimage import io
 from skimage.measure import compare_psnr, compare_ssim
 from torch.utils.data import DataLoader
-from prefetch_generator import BackgroundGenerator
 
+from model.ME import Network as ME
 from utils import AverageMeter, chw_to_hwc
 from dataset.loader import UPE_INF
-
-parser = argparse.ArgumentParser(description = 'Test')
-parser.add_argument('--model', default='ME', type=str, help='model name')
-parser.add_argument('--exp', default='ME', type=str, help='experiment name')
-parser.add_argument('--ts', default=224, type=int, help='thumbnail size')
-args = parser.parse_args()
-
-
-class DataLoaderX(DataLoader):
-
-    def __iter__(self):
-        return BackgroundGenerator(super().__iter__())
 
 
 def test(test_loader, model, result_dir):
@@ -68,10 +55,10 @@ def test(test_loader, model, result_dir):
 
 
 if __name__ == '__main__':
-	save_dir = os.path.join('./save_model/', args.exp)
-	result_dir = os.path.join('./result/', args.exp)
+	save_dir = './save_model/'
+	result_dir = './result/'
 
-	model = importlib.import_module('.' + args.model, package='model').Network()
+	model = ME(conv3_num=0, conv1_num=6)
 	print(model)
 	model.cuda()
 
@@ -85,8 +72,8 @@ if __name__ == '__main__':
 	else:
 		exit(1)
 
-	test_dataset = UPE_INF('../dataset/UPE/test_full/', thumb_size=args.ts)
-	test_loader = DataLoaderX(
-		test_dataset, batch_size=1, shuffle=False, pin_memory=True)
+	test_dataset = UPE_INF('../dataset/UPE/test_full/')
+	test_loader = DataLoader(
+		test_dataset, batch_size=1, shuffle=False)
 
 	test(test_loader, model, result_dir)

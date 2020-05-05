@@ -3,7 +3,7 @@ import random, math
 import torch
 import numpy as np
 import glob
-import PIL.Image as Image
+import jpeg4py as jpeg
 import cv2
 
 from torch.utils.data import Dataset
@@ -52,17 +52,12 @@ class UPE(Dataset):
 		H_start, H_end, W_start, W_end, H_bias, W_bias = (filename.split('.')[0]).split('_')
 
 		location = [int(H_end)-int(H_start), int(W_end)-int(W_start), int(H_bias), int(W_bias)]
-		
-		low_img = Image.open(os.path.join(self.input_dir, self.ids[idx], filename))
-		high_img = Image.open(os.path.join(self.gt_dir, self.ids[idx], filename))
-		thumb_low_img = Image.open(os.path.join(self.input_thumb_dir, self.ids[idx], filename))
-		thumb_high_img = Image.open(os.path.join(self.gt_thumb_dir, self.ids[idx], filename))
 
-		low_img = np.array(low_img) / 255.
-		high_img = np.array(high_img) / 255.
-		thumb_low_img = np.array(thumb_low_img) / 255.
-		thumb_high_img = np.array(thumb_high_img) / 255.
-		
+		low_img = jpeg.JPEG(os.path.join(self.input_dir, self.ids[idx], filename)).decode() / 255.
+		high_img = jpeg.JPEG(os.path.join(self.gt_dir, self.ids[idx], filename)).decode() / 255.
+		thumb_low_img = jpeg.JPEG(os.path.join(self.input_thumb_dir, self.ids[idx], filename)).decode() / 255.
+		thumb_high_img = jpeg.JPEG(os.path.join(self.gt_thumb_dir, self.ids[idx], filename)).decode() / 255.
+
 		low_img, high_img, thumb_low_img, thumb_high_img = augment(low_img, high_img, thumb_low_img, thumb_high_img)
 
 		low_img = hwc_to_chw(low_img)
@@ -71,6 +66,7 @@ class UPE(Dataset):
 		thumb_high_img = hwc_to_chw(thumb_high_img)
 
 		return low_img, high_img, thumb_low_img, thumb_high_img, location
+
 
 class UPE_INF(Dataset):
 	def __init__(self, root_dir, thumb_size=224):
@@ -89,6 +85,9 @@ class UPE_INF(Dataset):
 		return l
 
 	def __getitem__(self, idx):
+		cv2.setNumThreads(0)
+		cv2.ocl.setUseOpenCL(False)
+
 		low_img = read_img(os.path.join(self.input_dir, self.filenames[idx]))
 		high_img = read_img(os.path.join(self.gt_dir, self.filenames[idx]))
 		thumb_low_img = cv2.resize(low_img, (self.thumb_size, self.thumb_size))
