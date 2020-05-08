@@ -8,7 +8,7 @@ from .module.resnet import fixup_resnet152 as meta
 
 
 class Network(nn.Module):
-	def __init__(self, conv3_num=5, conv1_num=1):
+	def __init__(self, conv3_num, conv1_num):
 		super(Network, self).__init__()
 		self.conv3_num = conv3_num
 		self.conv1_num = conv1_num
@@ -21,16 +21,13 @@ class Network(nn.Module):
 		kernel = feature[:, 0:81].view(batch_size, 3, 3, 3, 3)
 		bias = feature[:, 81:84].view(batch_size, 3)
 
-		input_list = list(torch.split(x, 1, dim=0))
-		kernel_list = list(torch.split(kernel, 1, dim=0))
-		bias_list = list(torch.split(bias, 1, dim=0))
+		x_b2c = torch.cat(torch.split(x, 1, dim=0), dim=1)
+		kernel_b2c = torch.cat(torch.split(kernel, 1, dim=0), dim=1).squeeze_(0)
+		bias_b2c = torch.cat(torch.split(bias, 1, dim=0), dim=1).squeeze_(0)
 
-		output_list = list(map(
-			lambda x, y, z: F.conv2d(x, torch.squeeze(y, dim=0), bias=torch.squeeze(z, dim=0), padding=1), 
-			input_list, kernel_list, bias_list)
-		)
-			
-		output = torch.cat(output_list, dim=0)
+		output = F.conv2d(x_b2c, kernel_b2c, bias=bias_b2c, padding=1, groups=batch_size)
+		output = torch.cat(torch.split(output, 3, dim=1), dim=0)
+
 		output = residual + output
 
 		output = F.leaky_relu(output, negative_slope=0.2, inplace=True)
@@ -44,16 +41,13 @@ class Network(nn.Module):
 		kernel = feature[:, 0:9].view(batch_size, 3, 3, 1, 1)
 		bias = feature[:, 9:12].view(batch_size, 3)
 
-		input_list = list(torch.split(x, 1, dim=0))
-		kernel_list = list(torch.split(kernel, 1, dim=0))
-		bias_list = list(torch.split(bias, 1, dim=0))
+		x_b2c = torch.cat(torch.split(x, 1, dim=0), dim=1)
+		kernel_b2c = torch.cat(torch.split(kernel, 1, dim=0), dim=1).squeeze_(0)
+		bias_b2c = torch.cat(torch.split(bias, 1, dim=0), dim=1).squeeze_(0)
 
-		output_list = list(map(
-			lambda x, y, z: F.conv2d(x, torch.squeeze(y, dim=0), bias=torch.squeeze(z, dim=0)), 
-			input_list, kernel_list, bias_list)
-		)
-			
-		output = torch.cat(output_list, dim=0)
+		output = F.conv2d(x_b2c, kernel_b2c, bias=bias_b2c, groups=batch_size)
+		output = torch.cat(torch.split(output, 3, dim=1), dim=0)
+
 		output = residual + output
 
 		output = F.leaky_relu(output, negative_slope=0.2, inplace=True)
@@ -93,11 +87,12 @@ class Network(nn.Module):
 		feature = self.meta(thumb_x)
 		
 		# For main
+		bias = 0
 		residual = x
 
 		for i in range(self.conv3_num):
-			x = self.conv3x3(x, feature[:, i*84:(i+1)*84])
-		bias = (i+1)*84 if self.conv3_num > 0 else 0
+			x = self.conv3x3(x, feature[:, (bias+i*84):(bias+(i+1)*84)])
+		bias = bias+(i+1)*84 if self.conv3_num > 0 else bias
 
 		for i in range(self.conv1_num):
 			x = self.conv1x1(x, feature[:, (bias+i*12):(bias+(i+1)*12)])
@@ -150,8 +145,8 @@ class Network(nn.Module):
 		residual_t = thumb_x
 
 		for i in range(self.conv3_num):
-			thumb_x = self.conv3x3(thumb_x, feature[:, i*84:(i+1)*84])
-		bias = (i+1)*84 if self.conv3_num > 0 else 0
+			thumb_x = self.conv3x3(thumb_x, feature[:, (bias+i*84):(bias+(i+1)*84)])
+		bias = bias+(i+1)*84 if self.conv3_num > 0 else bias
 
 		for i in range(self.conv1_num):
 			thumb_x = self.conv1x1(thumb_x, feature[:, (bias+i*12):(bias+(i+1)*12)])
