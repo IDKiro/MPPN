@@ -30,7 +30,9 @@ class fixed_loss(nn.Module):
 	def forward(self, out_image, gt_image, out_thumb, gt_thumb):
 		ms_ssim_loss = 1 - ms_ssim(out_image, gt_image, data_range=1, size_average=True)
 		l1_loss = F.l1_loss(out_thumb, gt_thumb)
-		loss = ms_ssim_loss + l1_loss
+
+		lamda = 1
+		loss = l1_loss + lamda * ms_ssim_loss
 
 		return loss
 
