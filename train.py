@@ -12,7 +12,7 @@ from pytorch_msssim import ms_ssim
 
 from model.ME import Network as ME
 from utils import AverageMeter, chw_to_hwc
-from dataset.loader import UPE, UPE_INF
+from dataset.loader import UPE
 
 
 parser = argparse.ArgumentParser(description = 'Train')
@@ -100,10 +100,6 @@ if __name__ == '__main__':
 	train_dataset = UPE(os.path.join(data_dir, 'train'))
 	train_loader = DataLoader(
 		train_dataset, batch_size=args.bs, shuffle=True, num_workers=16, pin_memory=True)
-
-	val_dataset = UPE_INF(os.path.join(data_dir, 'test'))
-	val_loader = DataLoader(
-		val_dataset, batch_size=1, shuffle=False, num_workers=8)
 
 	for epoch in range(cur_epoch, args.epochs + 1):
 		train(train_loader, model, criterion, optimizer, epoch)

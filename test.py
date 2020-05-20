@@ -74,10 +74,10 @@ if __name__ == '__main__':
 
 	model = nn.DataParallel(model)
 
-	if os.path.exists(os.path.join(save_dir, 'best_model.pth.tar')):
+	if os.path.exists(os.path.join(save_dir, 'checkpoint.pth.tar')):
 		# load existing model
-		model_info = torch.load(os.path.join(save_dir, 'best_model.pth.tar'))
-		print('==> loading existing model:', os.path.join(save_dir, 'best_model.pth.tar'))
+		model_info = torch.load(os.path.join(save_dir, 'checkpoint.pth.tar'))
+		print('==> loading existing model:', os.path.join(save_dir, 'checkpoint.pth.tar'))
 		model.load_state_dict(model_info['state_dict'])
 	else:
 		exit(1)
