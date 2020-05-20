@@ -51,7 +51,7 @@ Extract the files to `data` folder and `save_model` folder as follow:
       low/
         ... (jpg files)
   save_model/
-    checkpoint.pth.tar
+    best_model.pth.tar
 ```
 
 ## Quick Start

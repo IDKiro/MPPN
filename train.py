@@ -12,13 +12,14 @@ from pytorch_msssim import ms_ssim
 
 from model.ME import Network as ME
 from utils import AverageMeter, chw_to_hwc
-from dataset.loader import UPE
+from dataset.loader import UPE, UPE_INF
 
 
 parser = argparse.ArgumentParser(description = 'Train')
 parser.add_argument('--bs', default=64, type=int, help='batch size')
 parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
-parser.add_argument('--epochs', default=100, type=int, help='sum of epochs')
+parser.add_argument('--epochs', default=200, type=int, help='sum of epochs')
+parser.add_argument('--eval_freq', default=20, type=int, help='validate frequency')
 args = parser.parse_args()
 
 
@@ -69,8 +70,34 @@ def train(train_loader, model, criterion, optimizer, epoch):
 			time=time.time()-st))
 
 
+def validate(val_loader, model, epoch):
+	losses = AverageMeter()
+	
+	torch.cuda.empty_cache()
+	model.eval()
+
+	for ind, (low_img, high_img, thumb_low_img) in enumerate(val_loader):
+		input_var = low_img.cuda()
+		target_var = high_img.cuda()
+		thumb_input_var = thumb_low_img.cuda()
+
+		with torch.no_grad():
+			output, _ = model(input_var, thumb_input_var)
+
+		loss = F.l1_loss(output, target_var)
+		losses.update(loss.item())
+
+		print('Validation: [{0}][{1}]\t'
+			'L1 Loss: {loss.val:.4f} ({loss.avg:.4f})'.format(
+			epoch, ind,
+			loss=losses))
+
+	return losses.avg		
+
+
 if __name__ == '__main__':
 	save_dir = './save_model/'
+	result_dir = './result/'
 	data_dir = './data/'
 
 	model = ME()
@@ -87,12 +114,14 @@ if __name__ == '__main__':
 		optimizer = torch.optim.Adam(model.parameters())
 		optimizer.load_state_dict(model_info['optimizer'])
 		cur_epoch = model_info['epoch']
+		best_loss = model_info['loss']
 	else:
 		if not os.path.isdir(save_dir):
 			os.makedirs(save_dir)
 		# create model
 		optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 		cur_epoch = 0
+		best_loss = 1.0
 
 	criterion = fixed_loss()
 	criterion.cuda()
@@ -101,11 +130,30 @@ if __name__ == '__main__':
 	train_loader = DataLoader(
 		train_dataset, batch_size=args.bs, shuffle=True, num_workers=16, pin_memory=True)
 
+	val_dataset = UPE_INF(os.path.join(data_dir, 'test'))
+	val_loader = DataLoader(
+		val_dataset, batch_size=1, shuffle=False, num_workers=8)
+
 	for epoch in range(cur_epoch, args.epochs + 1):
 		train(train_loader, model, criterion, optimizer, epoch)
 
 		torch.save({
 			'epoch': epoch + 1,
+			'loss': best_loss,
 			'state_dict': model.state_dict(),
 			'optimizer' : optimizer.state_dict()}, 
 			os.path.join(save_dir, 'checkpoint.pth.tar'))
+
+		if epoch % args.eval_freq == 0:
+			avg_loss = validate(val_loader, model, epoch)
+
+			if avg_loss < best_loss:
+				best_loss = avg_loss
+				torch.save({
+					'epoch': epoch + 1,
+					'loss': best_loss,
+					'state_dict': model.state_dict(),
+					'optimizer' : optimizer.state_dict()}, 
+					os.path.join(save_dir, 'best_model.pth.tar'))
+	
+		print('Best loss: %.5f' % best_loss)
