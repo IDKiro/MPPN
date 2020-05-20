@@ -7,7 +7,7 @@ import jpeg4py as jpeg
 import cv2
 
 from torch.utils.data import Dataset
-from utils import hwc_to_chw, read_img
+from utils import hwc_to_chw
 
 
 def augment(patch_low_img, patch_high_img, thumb_low_img, thumb_high_img):
@@ -73,7 +73,7 @@ class UPE_INF(Dataset):
 		self.input_dir = os.path.join(root_dir, 'low') 
 		self.gt_dir = os.path.join(root_dir, 'high') 
 
-		fns = glob.glob(os.path.join(self.gt_dir, '*.bmp'))
+		fns = glob.glob(os.path.join(self.gt_dir, '*.jpg'))
 		self.filenames = [os.path.basename(fn) for fn in fns]
 
 		self.thumb_size = thumb_size
@@ -88,8 +88,8 @@ class UPE_INF(Dataset):
 		cv2.setNumThreads(0)
 		cv2.ocl.setUseOpenCL(False)
 
-		low_img = read_img(os.path.join(self.input_dir, self.filenames[idx]))
-		high_img = read_img(os.path.join(self.gt_dir, self.filenames[idx]))
+		low_img = jpeg.JPEG(os.path.join(self.input_dir, self.filenames[idx])).decode() / 255.
+		high_img = jpeg.JPEG(os.path.join(self.gt_dir, self.filenames[idx])).decode() / 255.
 		thumb_low_img = cv2.resize(low_img, (self.thumb_size, self.thumb_size))
 
 		low_img = hwc_to_chw(low_img)

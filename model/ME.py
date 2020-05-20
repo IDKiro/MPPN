@@ -4,15 +4,27 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from .module.resnet import fixup_resnet152 as meta
+from .module.resnet import fixup_resnet18, fixup_resnet34, fixup_resnet50, fixup_resnet101, fixup_resnet152
 
 
 class Network(nn.Module):
-	def __init__(self, conv3_num, conv1_num):
+	def __init__(self, conv3_num=0, conv1_num=6, arch='resnet152'):
 		super(Network, self).__init__()
 		self.conv3_num = conv3_num
 		self.conv1_num = conv1_num
-		self.meta = meta(out_ch=conv3_num*84+conv1_num*12+60)
+
+		if arch.startswith('resnet18'):
+			self.meta = fixup_resnet18(out_ch=conv3_num*84+conv1_num*12+60)
+		elif arch.startswith('resnet34'):
+			self.meta = fixup_resnet34(out_ch=conv3_num*84+conv1_num*12+60)
+		elif arch.startswith('resnet50'):
+			self.meta = fixup_resnet50(out_ch=conv3_num*84+conv1_num*12+60)
+		elif arch.startswith('resnet101'):
+			self.meta = fixup_resnet101(out_ch=conv3_num*84+conv1_num*12+60)
+		elif arch.startswith('resnet152'):
+			self.meta = fixup_resnet152(out_ch=conv3_num*84+conv1_num*12+60)
+		else:
+			raise Exception("This architecture has not been supported yet")
 
 	def conv3x3(self, x, feature):
 		residual = x
