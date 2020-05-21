@@ -5,21 +5,20 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from skimage import io
-from skimage.measure import compare_psnr, compare_ssim
 from torch.utils.data import DataLoader
 from pytorch_msssim import ms_ssim
 
 from model.ME import Network as ME
-from utils import AverageMeter, chw_to_hwc
+from utils import AverageMeter
 from dataset.loader import UPE, UPE_INF
 
 
 parser = argparse.ArgumentParser(description = 'Train')
 parser.add_argument('--bs', default=64, type=int, help='batch size')
 parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
-parser.add_argument('--epochs', default=200, type=int, help='sum of epochs')
-parser.add_argument('--eval_freq', default=20, type=int, help='validate frequency')
+parser.add_argument('--epochs', default=100, type=int, help='sum of epochs')
+parser.add_argument('--store_best', default=False, action='store_true', help='whether to save the best model')
+parser.add_argument('--eval_freq', default=10, type=int, help='validate frequency')
 args = parser.parse_args()
 
 
@@ -97,7 +96,6 @@ def validate(val_loader, model, epoch):
 
 if __name__ == '__main__':
 	save_dir = './save_model/'
-	result_dir = './result/'
 	data_dir = './data/'
 
 	model = ME()
@@ -144,7 +142,7 @@ if __name__ == '__main__':
 			'optimizer' : optimizer.state_dict()}, 
 			os.path.join(save_dir, 'checkpoint.pth.tar'))
 
-		if epoch % args.eval_freq == 0:
+		if args.store_best and epoch % args.eval_freq == 0:
 			avg_loss = validate(val_loader, model, epoch)
 
 			if avg_loss < best_loss:
@@ -155,5 +153,3 @@ if __name__ == '__main__':
 					'state_dict': model.state_dict(),
 					'optimizer' : optimizer.state_dict()}, 
 					os.path.join(save_dir, 'best_model.pth.tar'))
-	
-		print('Best loss: %.5f' % best_loss)
