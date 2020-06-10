@@ -4,54 +4,26 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from .module.resnet import fixup_resnet18, fixup_resnet34, fixup_resnet50, fixup_resnet101, fixup_resnet152
+from .module.resnet import fixup_resnet152
 
 
 class Network(nn.Module):
-	def __init__(self, conv3_num=0, conv1_num=6, arch='resnet152'):
+	def __init__(self):
 		super(Network, self).__init__()
-		self.conv3_num = conv3_num
-		self.conv1_num = conv1_num
+		# only the best case
+		self.light_conv_num = 6
+		self.poly_order = 3
+		self.conv_param_num = 12
 
-		if arch.startswith('resnet18'):
-			self.meta = fixup_resnet18(out_ch=conv3_num*84+conv1_num*12+60)
-		elif arch.startswith('resnet34'):
-			self.meta = fixup_resnet34(out_ch=conv3_num*84+conv1_num*12+60)
-		elif arch.startswith('resnet50'):
-			self.meta = fixup_resnet50(out_ch=conv3_num*84+conv1_num*12+60)
-		elif arch.startswith('resnet101'):
-			self.meta = fixup_resnet101(out_ch=conv3_num*84+conv1_num*12+60)
-		elif arch.startswith('resnet152'):
-			self.meta = fixup_resnet152(out_ch=conv3_num*84+conv1_num*12+60)
-		else:
-			raise Exception("This architecture has not been supported yet")
+		self.poly_num = int((self.poly_order + 1) * (self.poly_order + 2) * (self.poly_order + 3) / 6)
+		feature_num = self.light_conv_num * self.conv_param_num + self.poly_num * 3
 
-	def conv3x3(self, x, feature):
-		residual = x
-		
+		self.meta = fixup_resnet152(out_ch=feature_num)
+
+	def light_conv(self, x, param):
 		batch_size = x.size()[0]
-		kernel = feature[:, 0:81].view(batch_size, 3, 3, 3, 3)
-		bias = feature[:, 81:84].view(batch_size, 3)
-
-		x_b2c = torch.cat(torch.split(x, 1, dim=0), dim=1)
-		kernel_b2c = torch.cat(torch.split(kernel, 1, dim=0), dim=1).squeeze_(0)
-		bias_b2c = torch.cat(torch.split(bias, 1, dim=0), dim=1).squeeze_(0)
-
-		output = F.conv2d(x_b2c, kernel_b2c, bias=bias_b2c, padding=1, groups=batch_size)
-		output = torch.cat(torch.split(output, 3, dim=1), dim=0)
-
-		output = residual + output
-
-		output = F.leaky_relu(output, negative_slope=0.2, inplace=True)
-
-		return output
-
-	def conv1x1(self, x, feature):
-		residual = x
-
-		batch_size = x.size()[0]
-		kernel = feature[:, 0:9].view(batch_size, 3, 3, 1, 1)
-		bias = feature[:, 9:12].view(batch_size, 3)
+		kernel = param[:, 0:9].view(batch_size, 3, 3, 1, 1)
+		bias = param[:, 9:12].view(batch_size, 3)
 
 		x_b2c = torch.cat(torch.split(x, 1, dim=0), dim=1)
 		kernel_b2c = torch.cat(torch.split(kernel, 1, dim=0), dim=1).squeeze_(0)
@@ -60,59 +32,46 @@ class Network(nn.Module):
 		output = F.conv2d(x_b2c, kernel_b2c, bias=bias_b2c, groups=batch_size)
 		output = torch.cat(torch.split(output, 3, dim=1), dim=0)
 
-		output = residual + output
+		output = x + output
 
 		output = F.leaky_relu(output, negative_slope=0.2, inplace=True)
 
 		return output
 
-
-	def att_map(self, feature, h_mat, w_mat, x_int):
+	def att_map(self, coef, h_mat, w_mat, x_int):
 		att = \
-			feature[:, 0].view(-1, 1, 1, 1).expand_as(x_int)*torch.pow(h_mat, 3) + \
-			feature[:, 1].view(-1, 1, 1, 1).expand_as(x_int)*torch.pow(h_mat, 2)*w_mat + \
-			feature[:, 2].view(-1, 1, 1, 1).expand_as(x_int)*torch.pow(h_mat, 2)*x_int + \
-			feature[:, 3].view(-1, 1, 1, 1).expand_as(x_int)*torch.pow(h_mat, 2) + \
-			feature[:, 4].view(-1, 1, 1, 1).expand_as(x_int)*h_mat*torch.pow(w_mat, 2) + \
-			feature[:, 5].view(-1, 1, 1, 1).expand_as(x_int)*h_mat*w_mat*x_int + \
-			feature[:, 6].view(-1, 1, 1, 1).expand_as(x_int)*h_mat*w_mat + \
-			feature[:, 7].view(-1, 1, 1, 1).expand_as(x_int)*h_mat*torch.pow(x_int, 2) + \
-			feature[:, 8].view(-1, 1, 1, 1).expand_as(x_int)*h_mat*x_int + \
-			feature[:, 9].view(-1, 1, 1, 1).expand_as(x_int)*h_mat + \
-			feature[:, 10].view(-1, 1, 1, 1).expand_as(x_int)*torch.pow(w_mat, 3) + \
-			feature[:, 11].view(-1, 1, 1, 1).expand_as(x_int)*torch.pow(w_mat, 2)*x_int + \
-			feature[:, 12].view(-1, 1, 1, 1).expand_as(x_int)*torch.pow(w_mat, 2) + \
-			feature[:, 13].view(-1, 1, 1, 1).expand_as(x_int)*w_mat*torch.pow(x_int, 2) + \
-			feature[:, 14].view(-1, 1, 1, 1).expand_as(x_int)*w_mat*x_int + \
-			feature[:, 15].view(-1, 1, 1, 1).expand_as(x_int)*w_mat + \
-			feature[:, 16].view(-1, 1, 1, 1).expand_as(x_int)*torch.pow(x_int, 3) + \
-			feature[:, 17].view(-1, 1, 1, 1).expand_as(x_int)*torch.pow(x_int, 2) + \
-			feature[:, 18].view(-1, 1, 1, 1).expand_as(x_int)*x_int + \
-			feature[:, 19].view(-1, 1, 1, 1).expand_as(x_int)
+			coef[:, 0].view(-1, 1, 1, 1)*torch.pow(h_mat, 3) + \
+			coef[:, 1].view(-1, 1, 1, 1)*torch.pow(h_mat, 2)*w_mat + \
+			coef[:, 2].view(-1, 1, 1, 1)*torch.pow(h_mat, 2)*x_int + \
+			coef[:, 3].view(-1, 1, 1, 1)*torch.pow(h_mat, 2) + \
+			coef[:, 4].view(-1, 1, 1, 1)*h_mat*torch.pow(w_mat, 2) + \
+			coef[:, 5].view(-1, 1, 1, 1)*h_mat*w_mat*x_int + \
+			coef[:, 6].view(-1, 1, 1, 1)*h_mat*w_mat + \
+			coef[:, 7].view(-1, 1, 1, 1)*h_mat*torch.pow(x_int, 2) + \
+			coef[:, 8].view(-1, 1, 1, 1)*h_mat*x_int + \
+			coef[:, 9].view(-1, 1, 1, 1)*h_mat + \
+			coef[:, 10].view(-1, 1, 1, 1)*torch.pow(w_mat, 3) + \
+			coef[:, 11].view(-1, 1, 1, 1)*torch.pow(w_mat, 2)*x_int + \
+			coef[:, 12].view(-1, 1, 1, 1)*torch.pow(w_mat, 2) + \
+			coef[:, 13].view(-1, 1, 1, 1)*w_mat*torch.pow(x_int, 2) + \
+			coef[:, 14].view(-1, 1, 1, 1)*w_mat*x_int + \
+			coef[:, 15].view(-1, 1, 1, 1)*w_mat + \
+			coef[:, 16].view(-1, 1, 1, 1)*torch.pow(x_int, 3) + \
+			coef[:, 17].view(-1, 1, 1, 1)*torch.pow(x_int, 2) + \
+			coef[:, 18].view(-1, 1, 1, 1)*x_int + \
+			coef[:, 19].view(-1, 1, 1, 1)
 
 		return att
 
-	def forward(self, x, thumb_x, location=None):
+	def forward(self, x, thumb_x, position=None):
 		batch_size, _, x_h, x_w = x.size()
 		_, _, thumb_h, thumb_w = thumb_x.size()
 
+		# feature
 		feature = self.meta(thumb_x)
-		
-		# For main
-		bias = 0
-		residual = x
 
-		for i in range(self.conv3_num):
-			x = self.conv3x3(x, feature[:, (bias+i*84):(bias+(i+1)*84)])
-		bias = bias+(i+1)*84 if self.conv3_num > 0 else bias
-
-		for i in range(self.conv1_num):
-			x = self.conv1x1(x, feature[:, (bias+i*12):(bias+(i+1)*12)])
-		bias = bias+(i+1)*12 if self.conv1_num > 0 else bias
-
-		x = residual + x
-
-		if location == None:
+		# position
+		if position == None:
 			h_mat = torch.arange(x_h).view(1, 1, x_h, 1).repeat(1, 1, 1, x_w).cuda()
 			h_mat = h_mat / float(x_h)
 
@@ -121,64 +80,74 @@ class Network(nn.Module):
 		else:
 			h_mat = torch.cat(list(map(
 				lambda s: torch.arange(start=s, end=s+x_h).view(1, 1, x_h, 1).repeat(1, 1, 1, x_w),
-				location[2])
+				position[2])
 			), dim=0).cuda() 
 
-			h_mat = h_mat / location[0].float().view(batch_size, 1, 1, 1).expand_as(h_mat)
+			h_mat = h_mat / (position[0]).float().view(batch_size, 1, 1, 1).expand_as(h_mat)
 
 			w_mat = torch.cat(list(map(
 				lambda s: torch.arange(start=s, end=s+x_w).view(1, 1, 1, x_w).repeat(1, 1, x_h, 1),
-				location[3])
+				position[3])
 			), dim=0).cuda()
 
-			w_mat = w_mat / location[1].float().view(batch_size, 1, 1, 1).expand_as(w_mat)
+			w_mat = w_mat / (position[1]).float().view(batch_size, 1, 1, 1).expand_as(w_mat)
+			
+			thumb_h_mat = torch.arange(thumb_h).view(1, 1, thumb_h, 1).repeat(batch_size, 1, 1, thumb_w).cuda()
+			thumb_h_mat = thumb_h_mat / float(thumb_h)
 
-		feature_R = feature[:, bias:bias+20]
-		feature_G = feature[:, bias+20:bias+40]
-		feature_B = feature[:, bias+40:bias+60]
+			thumb_w_mat = torch.arange(thumb_w).view(1, 1, 1, thumb_w).repeat(batch_size, 1, thumb_h, 1).cuda()
+			thumb_w_mat = thumb_w_mat / float(thumb_w)
+
+		# feature to parameter
+		offset = 0
+
+		params = []
+		for i in range(self.light_conv_num):
+			params.append(feature[:, (offset+i*self.conv_param_num):(offset+(i+1)*self.conv_param_num)])
+		offset = offset+(i+1)*self.conv_param_num if self.light_conv_num > 0 else offset
+
+		coef_R = feature[:, offset:offset+self.poly_num]
+		coef_G = feature[:, offset+self.poly_num:offset+self.poly_num*2]
+		coef_B = feature[:, offset+self.poly_num*2:offset+self.poly_num*3]
+
+		# main process
+		residual = x
+
+		for i in range(self.light_conv_num):
+			x = self.light_conv(x, params[i])
+
+		x = residual + x
 
 		x_R = x[:, [0], : ,:]
 		x_G = x[:, [1], : ,:]
 		x_B = x[:, [2], : ,:]
 
-		att_R = self.att_map(feature_R, h_mat, w_mat, x_R)
-		att_G = self.att_map(feature_G, h_mat, w_mat, x_G)
-		att_B = self.att_map(feature_B, h_mat, w_mat, x_B)
+		att_R = self.att_map(coef_R, h_mat, w_mat, x_R)
+		att_G = self.att_map(coef_G, h_mat, w_mat, x_G)
+		att_B = self.att_map(coef_B, h_mat, w_mat, x_B)
 
 		att = torch.cat([att_R, att_G, att_B], dim=1)
 
 		x = x * (1 + att)
 
-		if location == None:
+		if position == None:
 			return x, thumb_x
 
-		# For thumbnail
-		bias = 0
+		# thumbnail process
 		residual_t = thumb_x
 
-		for i in range(self.conv3_num):
-			thumb_x = self.conv3x3(thumb_x, feature[:, (bias+i*84):(bias+(i+1)*84)])
-		bias = bias+(i+1)*84 if self.conv3_num > 0 else bias
-
-		for i in range(self.conv1_num):
-			thumb_x = self.conv1x1(thumb_x, feature[:, (bias+i*12):(bias+(i+1)*12)])
-		bias = bias+(i+1)*12 if self.conv1_num > 0 else bias
+		for i in range(self.light_conv_num):
+			thumb_x = self.light_conv(thumb_x, params[i])
 
 		thumb_x = residual_t + thumb_x
-
-		thumb_h_mat = torch.arange(thumb_h).view(1, 1, thumb_h, 1).repeat(batch_size, 1, 1, thumb_w).cuda()
-		thumb_h_mat = thumb_h_mat / float(thumb_h)
-
-		thumb_w_mat = torch.arange(thumb_w).view(1, 1, 1, thumb_w).repeat(batch_size, 1, thumb_h, 1).cuda()
-		thumb_w_mat = thumb_w_mat / float(thumb_w)
 
 		thumb_x_R = thumb_x[:, [0], : ,:]
 		thumb_x_G = thumb_x[:, [1], : ,:]
 		thumb_x_B = thumb_x[:, [2], : ,:]
 
-		thumb_att_R = self.att_map(feature_R, thumb_h_mat, thumb_w_mat, thumb_x_R)
-		thumb_att_G = self.att_map(feature_G, thumb_h_mat, thumb_w_mat, thumb_x_G)
-		thumb_att_B = self.att_map(feature_B, thumb_h_mat, thumb_w_mat, thumb_x_B)
+		thumb_att_R = self.att_map(coef_R, thumb_h_mat, thumb_w_mat, thumb_x_R)
+		thumb_att_G = self.att_map(coef_G, thumb_h_mat, thumb_w_mat, thumb_x_G)
+		thumb_att_B = self.att_map(coef_B, thumb_h_mat, thumb_w_mat, thumb_x_B)
 
 		thumb_att = torch.cat([thumb_att_R, thumb_att_G, thumb_att_B], dim=1)
 

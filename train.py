@@ -14,10 +14,9 @@ from dataset.loader import UPE, UPE_INF
 
 
 parser = argparse.ArgumentParser(description = 'Train')
-parser.add_argument('--bs', default=64, type=int, help='batch size')
+parser.add_argument('--batch_size', default=64, type=int, help='batch size')
 parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
 parser.add_argument('--epochs', default=100, type=int, help='sum of epochs')
-parser.add_argument('--store_best', default=False, action='store_true', help='whether to save the best model')
 parser.add_argument('--eval_freq', default=10, type=int, help='validate frequency')
 args = parser.parse_args()
 
@@ -41,16 +40,16 @@ def train(train_loader, model, criterion, optimizer, epoch):
 	losses = AverageMeter()
 	model.train()
 
-	for ind, (low_img, high_img, thumb_low_img, thumb_high_img, location) in enumerate(train_loader):
+	for ind, (low_img, high_img, thumb_low_img, thumb_high_img, position) in enumerate(train_loader):
 		st = time.time()
 
 		input_var = low_img.cuda()
 		target_var = high_img.cuda()
 		thumb_input_var = thumb_low_img.cuda()
 		thumb_target_var = thumb_high_img.cuda()
-		location_var = location
+		position_var = position
 
-		output, thumb_output = model(input_var, thumb_input_var, location_var)
+		output, thumb_output = model(input_var, thumb_input_var, position_var)
 
 		loss = criterion(output, target_var, thumb_output, thumb_target_var)
 		losses.update(loss.item())
@@ -126,7 +125,7 @@ if __name__ == '__main__':
 
 	train_dataset = UPE(os.path.join(data_dir, 'train'))
 	train_loader = DataLoader(
-		train_dataset, batch_size=args.bs, shuffle=True, num_workers=16, pin_memory=True)
+		train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=16, pin_memory=True)
 
 	val_dataset = UPE_INF(os.path.join(data_dir, 'test'))
 	val_loader = DataLoader(
@@ -135,14 +134,7 @@ if __name__ == '__main__':
 	for epoch in range(cur_epoch, args.epochs + 1):
 		train(train_loader, model, criterion, optimizer, epoch)
 
-		torch.save({
-			'epoch': epoch + 1,
-			'loss': best_loss,
-			'state_dict': model.state_dict(),
-			'optimizer' : optimizer.state_dict()}, 
-			os.path.join(save_dir, 'checkpoint.pth.tar'))
-
-		if args.store_best and epoch % args.eval_freq == 0:
+		if epoch % args.eval_freq == 0:
 			avg_loss = validate(val_loader, model, epoch)
 
 			if avg_loss < best_loss:
@@ -153,3 +145,13 @@ if __name__ == '__main__':
 					'state_dict': model.state_dict(),
 					'optimizer' : optimizer.state_dict()}, 
 					os.path.join(save_dir, 'best_model.pth.tar'))
+
+		torch.save({
+			'epoch': epoch + 1,
+			'loss': best_loss,
+			'state_dict': model.state_dict(),
+			'optimizer' : optimizer.state_dict()}, 
+			os.path.join(save_dir, 'checkpoint.pth.tar'))
+
+		print('Best validation L1 loss: %.4f' % best_loss)
+		

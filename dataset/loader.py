@@ -51,7 +51,7 @@ class UPE(Dataset):
 		
 		H_start, H_end, W_start, W_end, H_bias, W_bias = (filename.split('.')[0]).split('_')
 
-		location = [int(H_end)-int(H_start), int(W_end)-int(W_start), int(H_bias), int(W_bias)]
+		position = [int(H_end)-int(H_start), int(W_end)-int(W_start), int(H_bias), int(W_bias)]
 
 		low_img = jpeg.JPEG(os.path.join(self.input_dir, self.ids[idx], filename)).decode() / 255.
 		high_img = jpeg.JPEG(os.path.join(self.gt_dir, self.ids[idx], filename)).decode() / 255.
@@ -65,7 +65,7 @@ class UPE(Dataset):
 		thumb_low_img = hwc_to_chw(thumb_low_img)
 		thumb_high_img = hwc_to_chw(thumb_high_img)
 
-		return low_img, high_img, thumb_low_img, thumb_high_img, location
+		return low_img, high_img, thumb_low_img, thumb_high_img, position
 
 
 class UPE_INF(Dataset):

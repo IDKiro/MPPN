@@ -61,10 +61,8 @@ Extract the files to `data` folder and `save_model` folder as follow:
 Train the model:
 
 ```
-python train.py --store_best
+python train.py
 ```
-
-*Because the dataset does not split the validation set, adding `--store_best` can reproduce the results more stably.*
 
 ### Test
 
