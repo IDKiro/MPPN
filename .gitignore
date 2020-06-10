@@ -1,9 +1,7 @@
 # Add by user
 .vscode/
-result/
-data/
-save_model/
-experiment/
+*.jpg
+*.tar
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
