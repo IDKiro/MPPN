@@ -1,5 +1,8 @@
 # Add by user
 .vscode/
+data/train/
+data/test/
+result/
 *.jpg
 *.tar
 
