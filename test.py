@@ -40,7 +40,7 @@ def test(test_loader, model, result_dir):
 
 		test_psnr = compare_psnr(high_np_img, output_img, data_range=1)
 		test_ssim = compare_ssim(high_np_img, output_img, data_range=1, multichannel=True)
-		test_lpips = compare_lpips(output, target_var)
+		test_lpips = compare_lpips(output*2.-1., target_var*2.-1.)		# normalize to [-1,1]
 
 		psnr.update(test_psnr)
 		ssim.update(test_ssim)
