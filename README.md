@@ -1,23 +1,13 @@
-# Meta-Enhancer
+# MPPN
 
-Official implementation for the paper 'Meta-Enhancer: Model Parameter Learning for Real-Time High-Resolution Image Enhancement'. 
-
-![Meta-Enhancer](figs/Meta-Enhancer.jpg)
+**Pytorch implementation for the paper entitled "Model Parameter Learning for Real-Time High-Resolution Image Enhancement"**
 
 ## Requirement
 
-The recommended environment is as follows:
-
-python 3.7.0, pytorch 1.3.1, numpy 1.15.1, scipy 1.1.0, opencv 3.4.1, scikit-image 0.14.0, pytorch_msssim 0.2.0
-
-**Generally, other close versions of packages can also run our code.**
-
-### Additional
-
-lpips_pytorch:
+main:
 
 ```
-pip install git+https://github.com/S-aiueo32/lpips-pytorch.git
+python 3.7.0, pytorch 1.3.1, numpy 1.15.1, scipy 1.1.0, opencv 3.4.1, scikit-image 0.14.0, pytorch_msssim 0.2.0
 ```
 
 jpeg4py:
@@ -29,7 +19,10 @@ pip install jpeg4py
 
 ## Data
 
-Download the [train set](https://drive.google.com/file/d/1D0NvBNrzx_0HpjMR8Dh4nKYI_zuS-x4B/view?usp=sharing), [test set](https://drive.google.com/file/d/1--iSszM__KO9Mg4Ag4w_o64h_eUq_E9S/view?usp=sharing), and [pre-trained model](https://drive.google.com/file/d/1eubNFb3nyiVayLevQCI3pSm7ukUJO3xf/view?usp=sharing).
+Processed FiveK Dataset: [train set](https://drive.google.com/file/d/1D0NvBNrzx_0HpjMR8Dh4nKYI_zuS-x4B/view?usp=sharing) and [test set](https://drive.google.com/file/d/1--iSszM__KO9Mg4Ag4w_o64h_eUq_E9S/view?usp=sharing).
+
+Pretrained model: [ResNet-18](https://drive.google.com/file/d/1nQtwdUR7T8Fey671BmaB_nRPMrfT5ybO/view?usp=sharing).
+
 
 Extract the files to `data` folder and `save_model` folder as follow:
 
@@ -71,5 +64,3 @@ Test the trained model:
 ```
 python test.py
 ```
-
-*Note that image loading, decoding and evaluating comsumes a lot of time.*

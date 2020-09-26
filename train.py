@@ -8,15 +8,15 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from pytorch_msssim import ms_ssim
 
-from model.ME import Network as ME
+from model.MPPN import Network as MPPN
 from utils import AverageMeter
 from dataset.loader import UPE, UPE_INF
 
 
 parser = argparse.ArgumentParser(description = 'Train')
-parser.add_argument('--batch_size', default=64, type=int, help='batch size')
+parser.add_argument('--batch_size', default=128, type=int, help='batch size')
 parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
-parser.add_argument('--epochs', default=100, type=int, help='sum of epochs')
+parser.add_argument('--epochs', default=200, type=int, help='sum of epochs')
 parser.add_argument('--eval_freq', default=10, type=int, help='validate frequency')
 args = parser.parse_args()
 
@@ -80,7 +80,7 @@ def validate(val_loader, model, epoch):
 		thumb_input_var = thumb_low_img.cuda()
 
 		with torch.no_grad():
-			output, _ = model(input_var, thumb_input_var)
+			output = model(input_var, thumb_input_var)
 
 		loss = F.l1_loss(output, target_var)
 		losses.update(loss.item())
@@ -97,10 +97,8 @@ if __name__ == '__main__':
 	save_dir = './save_model/'
 	data_dir = './data/'
 
-	model = ME()
-	print(model)
+	model = MPPN()
 	model.cuda()
-
 	model = nn.DataParallel(model)
 
 	if os.path.exists(os.path.join(save_dir, 'checkpoint.pth.tar')):
@@ -110,6 +108,8 @@ if __name__ == '__main__':
 		model.load_state_dict(model_info['state_dict'])
 		optimizer = torch.optim.Adam(model.parameters())
 		optimizer.load_state_dict(model_info['optimizer'])
+		scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
+		scheduler.load_state_dict(model_info['scheduler'])
 		cur_epoch = model_info['epoch']
 		best_loss = model_info['loss']
 	else:
@@ -117,6 +117,7 @@ if __name__ == '__main__':
 			os.makedirs(save_dir)
 		# create model
 		optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+		scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 		cur_epoch = 0
 		best_loss = 1.0
 
@@ -134,6 +135,8 @@ if __name__ == '__main__':
 	for epoch in range(cur_epoch, args.epochs + 1):
 		train(train_loader, model, criterion, optimizer, epoch)
 
+		scheduler.step()
+
 		if epoch % args.eval_freq == 0:
 			avg_loss = validate(val_loader, model, epoch)
 
@@ -143,14 +146,16 @@ if __name__ == '__main__':
 					'epoch': epoch + 1,
 					'loss': best_loss,
 					'state_dict': model.state_dict(),
-					'optimizer' : optimizer.state_dict()}, 
+					'optimizer' : optimizer.state_dict(),
+					'scheduler' : scheduler.state_dict()}, 
 					os.path.join(save_dir, 'best_model.pth.tar'))
 
 		torch.save({
 			'epoch': epoch + 1,
 			'loss': best_loss,
 			'state_dict': model.state_dict(),
-			'optimizer' : optimizer.state_dict()}, 
+			'optimizer' : optimizer.state_dict(),
+			'scheduler' : scheduler.state_dict()}, 
 			os.path.join(save_dir, 'checkpoint.pth.tar'))
 
 		print('Best validation L1 loss: %.4f' % best_loss)
