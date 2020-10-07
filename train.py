@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from pytorch_msssim import ms_ssim
 
-from model.MPPN import Network as MPPN
+from model.enhancer import Network
 from utils import AverageMeter
 from dataset.loader import UPE, UPE_INF
 
@@ -97,7 +97,7 @@ if __name__ == '__main__':
 	save_dir = './save_model/'
 	data_dir = './data/'
 
-	model = MPPN()
+	model = Network()
 	model.cuda()
 	model = nn.DataParallel(model)
 

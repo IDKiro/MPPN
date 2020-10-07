@@ -5,10 +5,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 from skimage import io
-from skimage.measure import compare_psnr, compare_ssim
+from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 from torch.utils.data import DataLoader
 
-from model.MPPN import Network as MPPN
+from model.enhancer import Network
 from utils import AverageMeter, chw_to_hwc
 from dataset.loader import UPE_INF
 
@@ -35,8 +35,8 @@ def test(test_loader, model, result_dir):
 		high_np_img = chw_to_hwc(high_np[0])
 		output_img = chw_to_hwc(output_np[0])
 
-		test_psnr = compare_psnr(high_np_img, output_img, data_range=1)
-		test_ssim = compare_ssim(high_np_img, output_img, data_range=1, multichannel=True)
+		test_psnr = peak_signal_noise_ratio(high_np_img, output_img, data_range=1)
+		test_ssim = structural_similarity(high_np_img, output_img, data_range=1, multichannel=True)
 
 		psnr.update(test_psnr)
 		ssim.update(test_ssim)
@@ -60,7 +60,7 @@ if __name__ == '__main__':
 	result_dir = './result/'
 	data_dir = './data/'
 
-	model = MPPN()
+	model = Network()
 	model.cuda()
 	model = nn.DataParallel(model)
 

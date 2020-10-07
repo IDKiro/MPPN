@@ -21,7 +21,7 @@ pip install jpeg4py
 
 Processed FiveK Dataset: [train set](https://drive.google.com/file/d/1D0NvBNrzx_0HpjMR8Dh4nKYI_zuS-x4B/view?usp=sharing) and [test set](https://drive.google.com/file/d/1--iSszM__KO9Mg4Ag4w_o64h_eUq_E9S/view?usp=sharing).
 
-Pretrained model: [ResNet-18](https://drive.google.com/file/d/1nQtwdUR7T8Fey671BmaB_nRPMrfT5ybO/view?usp=sharing).
+Pretrained model: [ResNet-18](https://drive.google.com/file/d/17jFItuDQWYVQuAPLfOhJMWNiO0EXqWfo/view?usp=sharing).
 
 
 Extract the files to `data` folder and `save_model` folder as follow:
